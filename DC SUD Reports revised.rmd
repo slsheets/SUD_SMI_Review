@@ -1,0 +1,169 @@
+---
+title: "DC SUD"
+author: "Sarah S."
+date: "2022-11-18"
+output: html_document
+---
+
+#set working directory for all following chunks
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '/Users/smz9/Desktop/SUD Data/DC SUD')
+```
+
+#load libraries and set up functions
+```{r}
+
+#load libraries
+library(readxl)
+library(stringr)
+library(ggplot2)
+
+#load data by loading all excel files in folder to list
+setwd(dir = "/Users/smz9/Desktop/SUD Data/DC SUD")
+
+sheetlist <- list.files(pattern='*.xlsx')
+
+#set up functions and objects
+fillTheBlanks <- function(x, missing=""){
+  rle <- rle(as.character(x))
+  empty <- which(rle$value==missing)
+  rle$values[empty] <- rle$value[empty-1] 
+  inverse.rle(rle)
+}
+
+NotFancy <- function(l) {
+ l <- format(l, scientific = FALSE)
+ parse(text=l)
+}
+
+datalist <- c()
+```
+
+
+# for loop: for each spreadsheet in the sheetlist, run the following code, and then save the data in the 'combo' data frame
+
+
+```{r}
+
+for (i in 1:length(sheetlist)) {
+  print(i)
+  x <- sheetlist[i] 
+  mon_report <- read_excel(x, sheet = "SUD metrics")
+  #delete unneeded rows and columns
+  data <- mon_report[-(c(1:9, 11:13, 88:123)),]
+  data <- data[,-c(3:11)]
+
+#make column names
+  colnames(data) <- (data[1,])
+  data <- data[-1,]
+  colnames(data)[1] <- "Metric number"
+  colnames(data)[2] <- "Metric name"
+  colnames(data)[6] <- "numerator_count"
+  colnames(data)[5] <-"denominator"
+  colnames(data)[7] <- "rate_percent"
+  colnames(data)[3] <- "measurement_period"
+  colnames(data)[4] <- "date"
+  
+  
+#Fill in metric number
+  data$`Metric number` <- ifelse(is.na(data$`Metric number`) == TRUE, "blank", 
+                               ifelse(data$`Metric number`== "blank", "", data$`Metric number`))
+  data$`Metric number` <- fillTheBlanks(data$`Metric number`)
+
+
+# Metric names
+  data$`Metric name` <- ifelse(is.na(data$`Metric name`) == TRUE, "blank", 
+                               ifelse(data$`Metric name` == "blank", "", data$`Metric name`))
+  data$`Metric name` <- fillTheBlanks(data$`Metric name`)
+  
+  #n.a. text in reports
+  data <- data.frame(lapply(data, function(x) {
+    gsub("n.a.", "", x)
+    }))
+
+
+#change characters to numeric or factor as appropriate
+  data[,1:(ncol(data))] <- sapply(data[,1:(ncol(data))],as.character)
+  data[,5:(ncol(data))] <- sapply(data[,5:(ncol(data))],as.numeric)
+  data[,1:3] <- sapply(data[,1:3],as.factor)
+
+#date
+  data$date <- str_replace(data$date, "/21", "/2021")
+  data$date <- substr(data$date, 1, 10) 
+  data$date <- as.Date(data$date, format = "%m/%d/%Y")
+  
+  #name cleaned dataset and add to datalist
+  z <- str_sub(sheetlist[i], start= -17)
+  assign(paste(z), data)
+  datalist[[i]] = assign(paste(z), data)
+}
+```
+
+
+
+
+```{r}
+# add all new dataframes to a combined dataframe
+combined = data.table::rbindlist(datalist)
+
+combined$measurement_period <- ifelse(combined$Metric.number == "15" | combined$Metric.number == "16" | combined$Metric.number == "17(1)" | combined$Metric.number == "17(2)", "Year", combined$measurement_period)
+combined$measurement_period <- ifelse(combined$measurement_period == "Quarter", "Month", combined$measurement_period)
+combined$`Metric number` <- ifelse(combined$`Metric number` == "blank", 1, combined$`Metric number`)
+
+
+
+#create smaller dataframe to view quarterly trends in total population
+visdata <- combined[,c(1:4, 6)]
+visdata[is.na(visdata)] <- "" 
+visdata <- na.omit(visdata)
+visdata <- visdata[grep("Month", visdata$measurement_period),]
+
+#visualize trends in quarterly metrics
+quarter_plot <- ggplot(data = visdata, mapping = aes(x = date, y = as.numeric(numerator_count), color = as.factor(visdata$Metric.number))) + geom_point() + facet_wrap(~as.factor(visdata$Metric.number), scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+
+suppressWarnings(print(quarter_plot))
+
+```
+
+
+```{r}
+#visualize trends in yearly metrics
+visdata2 <- combined[,c(1:4, 6)]
+visdata2[is.na(visdata2)] <- "" 
+visdata2 <- na.omit(visdata2)
+visdata2 <- visdata2[grep("Year", visdata2$measurement_period),]
+
+#visualize trends in yearly metrics - might be better for analysts to just look through the data in the 'visdata2' dataframe, especially with metrics 15 and 17.
+year_plot <- ggplot(data = visdata2, mapping = aes(x = date, y = as.numeric(numerator_count), color = visdata2$Metric.number)) + geom_point() + facet_wrap(~visdata2$Metric.number, scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+suppressWarnings(print(year_plot))
+
+#RATES AND PERCENTAGES (especially for ALOS, metric 36)
+alosdata <- combined[, c(1:4, 7)]
+alosdata <- na.omit(alosdata)
+ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$Metric.number)) + geom_point() + facet_wrap(~alosdata$Metric.number, scales = "free")
+```
+
+
+
+## CHECK POPULATION SUMS
+
+```{r}
+combo <- combined
+
+#check age denominators
+combo$sums <- combo[,8] + combo[,11] + combo[,14]
+ifelse(combo$sums != combo$denominator, "age denom no", "ok")
+
+# check age numerators
+combo$sums <- combo[,9] + combo[,12] + combo[,15]
+ifelse(combo$sums != combo$numerator_count, "age num no", "ok") #166 and 167 wrong
+
+# check dual eligible numerators
+combo$sums <- combo[,18] + combo[,21]
+ifelse(combo$sums != combo$numerator_count, "dual num no", "ok") 
+
+# check pregnant numerators
+combo$sums <- combo[,24] + combo[,27]
+ifelse(combo$sums != combo$numerator_count, "preg num no", "ok") 
+
+```
