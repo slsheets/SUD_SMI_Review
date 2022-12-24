@@ -7,7 +7,7 @@ output: html_document
 
 #set working directory for all following blocks
 ```{r, setup, include=FALSE}
-knitr::opts_knit$set(root.dir = '/Users/smz9/Desktop/SUD Data/DC SUD')
+knitr::opts_knit$set(root.dir = '/Users/paulsheets/Desktop/CMS Data/DC SUD')
 ```
 
 #load libraries and set up functions
@@ -19,7 +19,7 @@ library(stringr)
 library(ggplot2)
 
 #load data by loading all excel files in folder to list
-setwd(dir = "/Users/smz9/Desktop/SUD Data/DC SUD")
+setwd(dir = "/Users/paulsheets/Desktop/CMS Data/DC SUD")
 
 sheetlist <- list.files(pattern='*.xlsx')
 
@@ -56,8 +56,8 @@ for (i in 1:length(sheetlist)) {
 #make column names
   colnames(data) <- (data[1,])
   data <- data[-1,]
-  colnames(data)[1] <- "Metric number"
-  colnames(data)[2] <- "Metric name"
+  colnames(data)[1] <- "metric_number"
+  colnames(data)[2] <- "metric_name"
   colnames(data)[6] <- "numerator_count"
   colnames(data)[5] <-"denominator"
   colnames(data)[7] <- "rate_percent"
@@ -66,15 +66,15 @@ for (i in 1:length(sheetlist)) {
   
   
 #Fill in metric number
-  data$`Metric number` <- ifelse(is.na(data$`Metric number`) == TRUE, "blank", 
-                               ifelse(data$`Metric number`== "blank", "", data$`Metric number`))
-  data$`Metric number` <- fillTheBlanks(data$`Metric number`)
+  data$metric_number <- ifelse(is.na(data$metric_number) == TRUE, "blank", 
+                               ifelse(data$metric_number == "blank", "", data$metric_number))
+  data$metric_number <- fillTheBlanks(data$metric_number)
 
 
 # Metric names
-  data$`Metric name` <- ifelse(is.na(data$`Metric name`) == TRUE, "blank", 
-                               ifelse(data$`Metric name` == "blank", "", data$`Metric name`))
-  data$`Metric name` <- fillTheBlanks(data$`Metric name`)
+  data$metric_name <- ifelse(is.na(data$metric_name) == TRUE, "blank", 
+                               ifelse(data$metric_name == "blank", "", data$metric_name))
+  data$metric_name <- fillTheBlanks(data$metric_name)
   
   #n.a. text in reports
   data <- data.frame(lapply(data, function(x) {
@@ -88,7 +88,7 @@ for (i in 1:length(sheetlist)) {
   data[,1:3] <- sapply(data[,1:3],as.factor)
 
 #date
-  data$date <- str_replace(data$date, "/21", "/2021")
+  data$date <- str_replace(data$date, "/21", "/2021") #need to figure out how to do signify that /21 is only for if nothing follows /21 so I can do the same thing with /20
   data$date <- substr(data$date, 1, 10) 
   data$date <- as.Date(data$date, format = "%m/%d/%Y")
   
@@ -106,9 +106,9 @@ for (i in 1:length(sheetlist)) {
 # add all new dataframes to a combined dataframe
 combined = data.table::rbindlist(datalist)
 
-combined$measurement_period <- ifelse(combined$Metric.number == "15" | combined$Metric.number == "16" | combined$Metric.number == "17(1)" | combined$Metric.number == "17(2)", "Year", combined$measurement_period)
+combined$measurement_period <- ifelse(combined$metric_number == "15" | combined$metric_number == "16" | combined$metric_number == "17(1)" | combined$metric_number == "17(2)", "Year", combined$measurement_period)
 combined$measurement_period <- ifelse(combined$measurement_period == "Quarter", "Month", combined$measurement_period)
-combined$`Metric number` <- ifelse(combined$`Metric number` == "blank", 1, combined$`Metric number`)
+combined$metric_number <- ifelse(combined$metric_number == "blank", 1, combined$metric_number)
 
 
 
@@ -119,10 +119,9 @@ visdata <- na.omit(visdata)
 visdata <- visdata[grep("Month", visdata$measurement_period),]
 
 #visualize trends in quarterly metrics
-quarter_plot <- ggplot(data = visdata, mapping = aes(x = date, y = as.numeric(numerator_count), color = as.factor(visdata$Metric.number))) + geom_point() + facet_wrap(~as.factor(visdata$Metric.number), scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+quarter_plot <- ggplot(data = visdata, mapping = aes(x = date, y = as.numeric(numerator_count), color = as.factor(visdata$metric_number))) + geom_point() + facet_wrap(~as.factor(visdata$metric_number), scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
 
 suppressWarnings(print(quarter_plot))
-
 ```
 
 
@@ -134,13 +133,16 @@ visdata2 <- na.omit(visdata2)
 visdata2 <- visdata2[grep("Year", visdata2$measurement_period),]
 
 #visualize trends in yearly metrics - might be better for analysts to just look through the data in the 'visdata2' dataframe, especially with metrics 15 and 17.
-year_plot <- ggplot(data = visdata2, mapping = aes(x = date, y = as.numeric(numerator_count), color = visdata2$Metric.number)) + geom_point() + facet_wrap(~visdata2$Metric.number, scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+year_plot <- ggplot(data = visdata2, mapping = aes(x = date, y = as.numeric(numerator_count), color = visdata2$metric_number)) + geom_point() + facet_wrap(~visdata2$metric_number, scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
 suppressWarnings(print(year_plot))
+```
 
+
+```{r}
 #RATES AND PERCENTAGES (especially for ALOS, metric 36)
 alosdata <- combined[, c(1:4, 7)]
 alosdata <- na.omit(alosdata)
-ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$Metric.number)) + geom_point() + facet_wrap(~alosdata$Metric.number, scales = "free")
+ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$metric_number)) + geom_point() + facet_wrap(~alosdata$metric_number, scales = "free")
 ```
 
 
