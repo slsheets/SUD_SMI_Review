@@ -48,22 +48,22 @@ datalist <- c()
 
 for (i in 1:length(sheetlist)) {
   print(i)
-  x <- sheetlist[i] 
+  x <- sheetlist[1] 
   mon_report <- read_excel(x, sheet = "SUD metrics")
   data <- mon_report
-  
-  data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2]
+  data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2] #need here for below subset
   
   #state specific - need to figure out how to add a column to specify the state the data is from, and then select the appropriate rows
   
+  #maybe Ross can make this a function??? 
   
   #DC delete unneeded rows and columns
-  data <- mon_report[-(c(1:9, 11:13, 88:123)),]
+  data <- data[-(c(1:9, 11:13, 88:123)),]
   data <- data[,-c(3:11)]
   
   # NH, KS delete unneeded rows and columns
-  data <- mon_report[-(c(1:9, 11:13, 91:111)),]
-  data <- data[,-c(3:11)]
+  #data <- data[-(c(1:9, 11:13, 91:111)),]
+  #data <- data[,-c(3:11)]
 
   
   
@@ -78,6 +78,8 @@ for (i in 1:length(sheetlist)) {
   colnames(data)[7] <- "rate_percent"
   colnames(data)[3] <- "measurement_period"
   colnames(data)[4] <- "date"
+  data <- data[,-(ncol(data))] #removing since column names have changed
+  data$state <- str_match(sheetlist[1], pattern = "//\\s*(.*?)\\s*/")[,2] #fixing above
   
   
 #Fill in metric number
@@ -127,11 +129,12 @@ combined = data.table::rbindlist(datalist)
 combined$measurement_period <- ifelse(combined$metric_number == "15" | combined$metric_number == "16" | combined$metric_number == "17(1)" | combined$metric_number == "17(2)", "Year", combined$measurement_period)
 combined$measurement_period <- ifelse(combined$measurement_period == "Quarter", "Month", combined$measurement_period)
 combined$metric_number <- ifelse(combined$metric_number == "blank", 1, combined$metric_number)
+```
 
 
-
+```{r}
 #create smaller dataframe to view quarterly trends in total population
-visdata <- combined[combined$state == "INSERT STATE HERE" ]
+visdata <- combined[combined$state == "INSERT STATE HERE",]
 visdata <- visdata[,c(1:4, 6)]
 visdata[is.na(visdata)] <- "" 
 visdata <- na.omit(visdata)
@@ -146,6 +149,7 @@ suppressWarnings(print(quarter_plot))
 
 ```{r}
 #visualize trends in yearly metrics
+visdata2 <- combined[combined$state == "INSERT STATE HERE",]
 visdata2 <- combined[,c(1:4, 6)]
 visdata2[is.na(visdata2)] <- "" 
 visdata2 <- na.omit(visdata2)
@@ -159,7 +163,8 @@ suppressWarnings(print(year_plot))
 
 ```{r}
 #RATES AND PERCENTAGES (especially for ALOS, metric 36)
-alosdata <- combined[, c(1:4, 7)]
+visdata3 <- combined[combined$state == "INSERT STATE HERE",]
+alosdata <- visdata3[, c(1:4, 7)]
 alosdata <- na.omit(alosdata)
 rateplot <- ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$metric_number)) + geom_point() + facet_wrap(~alosdata$metric_number, scales = "free")
 
@@ -171,7 +176,7 @@ suppressWarnings(print(rateplot))
 ## CHECK POPULATION SUMS
 
 ```{r}
-combo <- combined
+combo <- combined[combined$state == "INSERT STATE HERE",]
 
 #check age denominators
 combo$sums <- combo[,8] + combo[,11] + combo[,14]
