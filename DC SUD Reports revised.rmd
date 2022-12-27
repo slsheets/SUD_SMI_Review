@@ -48,7 +48,7 @@ datalist <- c()
 
 for (i in 1:length(sheetlist)) {
   print(i)
-  x <- sheetlist[1] 
+  x <- sheetlist[i] 
   mon_report <- read_excel(x, sheet = "SUD metrics")
   data <- mon_report
   data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2] #need here for below subset
