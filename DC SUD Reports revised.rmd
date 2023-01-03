@@ -16,7 +16,6 @@ knitr::opts_knit$set(root.dir = '~/Documents/CODE/SUD_SMI_Review')
 # Directory containing the data
 data_dir = './data/'
 
-
 ```
 
 #load libraries and set up functions
@@ -30,7 +29,8 @@ library(ggplot2)
 #load data by loading all excel files in folder to list
 setwd(dir = '~/Documents/CODE/SUD_SMI_Review/data')
 
-sheetlist <- list.files(pattern='*.xlsx')
+#testing data from multiple states
+sheetlist <- dir("/Users/paulsheets/Desktop/CMS Data/", recursive=TRUE, full.names=TRUE, pattern="\\.xlsx$")
 
 #set up functions and objects
 
@@ -72,33 +72,48 @@ for (i in 1:length(sheetlist)) {
   print(i)
   x <- paste(data_dir, sheetlist[i], sep='')
   mon_report <- read_excel(x, sheet = "SUD metrics")
+  data <- mon_report
+  data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2] #need here for below subset
   
-  #delete unneeded rows and columns
-  data <- mon_report[-(c(1:9, 11:13, 88:123)),]
-  data <- data[,-c(3:11)]
+  #state specific - need to figure out how to add a column to specify the state the data is from, and then select the appropriate rows
+  
+  #maybe Ross can make this a function??? 
+  
+  #DC delete unneeded rows and columns
+  data <- data[-(c(1:9, 11:13, 88:123)),]
 
-  #make column names
+  data <- data[,-c(3:11)]
+  
+  # NH, KS delete unneeded rows and columns
+  #data <- data[-(c(1:9, 11:13, 91:111)),]
+  #data <- data[,-c(3:11)]
+
+
+  # same for all states - rest of the data processing 
+  # make column names
   colnames(data) <- (data[1,])
   data <- data[-1,]
-  colnames(data)[1] <- "Metric number"
-  colnames(data)[2] <- "Metric name"
+  colnames(data)[1] <- "metric_number"
+  colnames(data)[2] <- "metric_name"
   colnames(data)[6] <- "numerator_count"
   colnames(data)[5] <-"denominator"
   colnames(data)[7] <- "rate_percent"
   colnames(data)[3] <- "measurement_period"
   colnames(data)[4] <- "date"
+  data <- data[,-(ncol(data))] #removing since column names have changed
+  data$state <- str_match(sheetlist[1], pattern = "//\\s*(.*?)\\s*/")[,2] #fixing above
   
   
 #Fill in metric number
-  data$`Metric number` <- ifelse(is.na(data$`Metric number`) == TRUE, "blank", 
-                               ifelse(data$`Metric number`== "blank", "", data$`Metric number`))
-  data$`Metric number` <- fillTheBlanks(data$`Metric number`)
+  data$metric_number <- ifelse(is.na(data$metric_number) == TRUE, "blank", 
+                               ifelse(data$metric_number == "blank", "", data$metric_number))
+  data$metric_number <- fillTheBlanks(data$metric_number)
 
 
 # Metric names
-  data$`Metric name` <- ifelse(is.na(data$`Metric name`) == TRUE, "blank", 
-                               ifelse(data$`Metric name` == "blank", "", data$`Metric name`))
-  data$`Metric name` <- fillTheBlanks(data$`Metric name`)
+  data$metric_name <- ifelse(is.na(data$metric_name) == TRUE, "blank", 
+                               ifelse(data$metric_name == "blank", "", data$metric_name))
+  data$metric_name <- fillTheBlanks(data$metric_name)
   
   #n.a. text in reports
   data <- data.frame(lapply(data, function(x) {
@@ -112,7 +127,10 @@ for (i in 1:length(sheetlist)) {
   data[,1:3] <- sapply(data[,1:3],as.factor)
 
 #date
-  data$date <- str_replace(data$date, "/21", "/2021")
+  data$date <- str_replace(data$date, "/21$", "/2021")
+  data$date <- str_replace(data$date, "/21-", "/2021-")
+  data$date <- str_replace(data$date, "/20$", "/2020")
+  data$date <- str_replace(data$date, "/20-", "/2020-")
   data$date <- substr(data$date, 1, 10) 
   data$date <- as.Date(data$date, format = "%m/%d/%Y")
   
@@ -130,41 +148,49 @@ for (i in 1:length(sheetlist)) {
 # add all new dataframes to a combined dataframe
 combined = data.table::rbindlist(datalist)
 
-combined$measurement_period <- ifelse(combined$Metric.number == "15" | combined$Metric.number == "16" | combined$Metric.number == "17(1)" | combined$Metric.number == "17(2)", "Year", combined$measurement_period)
+combined$measurement_period <- ifelse(combined$metric_number == "15" | combined$metric_number == "16" | combined$metric_number == "17(1)" | combined$metric_number == "17(2)", "Year", combined$measurement_period)
 combined$measurement_period <- ifelse(combined$measurement_period == "Quarter", "Month", combined$measurement_period)
-combined$`Metric number` <- ifelse(combined$`Metric number` == "blank", 1, combined$`Metric number`)
+combined$metric_number <- ifelse(combined$metric_number == "blank", 1, combined$metric_number)
+```
 
 
-
+```{r}
 #create smaller dataframe to view quarterly trends in total population
-visdata <- combined[,c(1:4, 6)]
+visdata <- combined[combined$state == "INSERT STATE HERE",]
+visdata <- visdata[,c(1:4, 6)]
 visdata[is.na(visdata)] <- "" 
 visdata <- na.omit(visdata)
 visdata <- visdata[grep("Month", visdata$measurement_period),]
 
 #visualize trends in quarterly metrics
-quarter_plot <- ggplot(data = visdata, mapping = aes(x = date, y = as.numeric(numerator_count), color = as.factor(visdata$Metric.number))) + geom_point() + facet_wrap(~as.factor(visdata$Metric.number), scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+quarter_plot <- ggplot(data = visdata, mapping = aes(x = date, y = as.numeric(numerator_count), color = as.factor(visdata$metric_number))) + geom_point() + facet_wrap(~as.factor(visdata$metric_number), scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
 
 suppressWarnings(print(quarter_plot))
-
 ```
 
 
 ```{r}
 #visualize trends in yearly metrics
+visdata2 <- combined[combined$state == "INSERT STATE HERE",]
 visdata2 <- combined[,c(1:4, 6)]
 visdata2[is.na(visdata2)] <- "" 
 visdata2 <- na.omit(visdata2)
 visdata2 <- visdata2[grep("Year", visdata2$measurement_period),]
 
 #visualize trends in yearly metrics - might be better for analysts to just look through the data in the 'visdata2' dataframe, especially with metrics 15 and 17.
-year_plot <- ggplot(data = visdata2, mapping = aes(x = date, y = as.numeric(numerator_count), color = visdata2$Metric.number)) + geom_point() + facet_wrap(~visdata2$Metric.number, scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
+year_plot <- ggplot(data = visdata2, mapping = aes(x = date, y = as.numeric(numerator_count), color = visdata2$metric_number)) + geom_point() + facet_wrap(~visdata2$metric_number, scales = "free") + geom_smooth() + scale_y_continuous(labels=NotFancy)
 suppressWarnings(print(year_plot))
+```
 
+
+```{r}
 #RATES AND PERCENTAGES (especially for ALOS, metric 36)
-alosdata <- combined[, c(1:4, 7)]
+visdata3 <- combined[combined$state == "INSERT STATE HERE",]
+alosdata <- visdata3[, c(1:4, 7)]
 alosdata <- na.omit(alosdata)
-ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$Metric.number)) + geom_point() + facet_wrap(~alosdata$Metric.number, scales = "free")
+rateplot <- ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), color = alosdata$metric_number)) + geom_point() + facet_wrap(~alosdata$metric_number, scales = "free")
+
+suppressWarnings(print(rateplot))
 ```
 
 
@@ -172,7 +198,7 @@ ggplot(data = alosdata, mapping = aes(x = date, y = as.numeric(rate_percent), co
 ## CHECK POPULATION SUMS
 
 ```{r}
-combo <- combined
+combo <- combined[combined$state == "INSERT STATE HERE",]
 
 #check age denominators
 combo$sums <- combo[,8] + combo[,11] + combo[,14]
