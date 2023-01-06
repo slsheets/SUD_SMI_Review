@@ -35,6 +35,18 @@ data_preprocess <- function(data_dir) {
     
     # Get parameters for the xlsx file you are loading
     params <- read.table(paramlist[i], sep=',', header = TRUE, strip.white = TRUE)
+    # Check that there are not blanks in either the "Variable" or "Values" columns
+    try(
+      if(sum(params$Variable=='')>0) 
+        stop(paste("Empty 'Variable' name detected, please check ",paramlist[i])
+      )
+    )
+    try(
+      if(sum(params$Values=='')>0) 
+        stop(paste("Empty 'Value' detected, please check ",paramlist[i])
+        )
+    )
+    
     
     # Determine which columns to load and their names
     data <- read_excel(sheetlist[i], sheet = params[params$Variable == "sheet_name", 2])
@@ -54,7 +66,6 @@ data_preprocess <- function(data_dir) {
     # remove said rows
     data <- data[-q,]
     
-    
     # load in the specified columns and rename them as requested
     rel_cols <- params[!(params$Variable %in% c('row_rm', 'state', 'sheet_name')),]
     data <- data[,as.numeric(rel_cols[,2])]
@@ -62,10 +73,18 @@ data_preprocess <- function(data_dir) {
     colnames(data) <- rel_cols[,1]
     
     # fill any blank value in the columns
-    data$metric_name <- ifelse(is.na(data$metric_name) == TRUE, "blank", 
-                               ifelse(data$metric_name == "blank", "",
-                                      data$metric_name))
+    
+    # Fill in metric name
+    data$metric_name <- ifelse((is.na(data$metric_name) | data$metric_name == 'blank'), "",data$metric_name)
     data$metric_name <- fillTheBlanks(data$metric_name)
+    
+    #Fill in metric number
+    data$metric_number <- ifelse((is.na(data$metric_number) | data$metric_number == 'blank'), "",data$metric_number)
+    #data$metric_number <- ifelse(is.na(data$metric_number) == TRUE, "blank", 
+    #                             ifelse(data$metric_number == "blank", "",data$metric_number))
+    data$metric_number <- fillTheBlanks(data$metric_number)
+    
+    
     
     #n.a. text in reports
     data <- data.frame(lapply(data, function(x) {
@@ -84,7 +103,7 @@ data_preprocess <- function(data_dir) {
     data$date <- as.Date(data$date, format = "%m/%d/%Y")
     
     # change the data typing of the columns if necessary
-    for (j in as.integer(rel_cols[,2])){
+    for (j in 1:length(rel_cols[,2])){
       if (rel_cols[j,3] == 'c'){
         data[,j] <- sapply(data[,j], as.character)
       }
@@ -97,6 +116,10 @@ data_preprocess <- function(data_dir) {
         data[,j] <- sapply(data[,j], as.numeric)
       }
     }
+    
+    
+    # Add the name of the state to the dataframe
+    data$state <- params[params$Variable == 'state',2]
   
   }
   
@@ -104,5 +127,3 @@ data_preprocess <- function(data_dir) {
 }
 
 qq <- data_preprocess('./data')
-
-print('done')
