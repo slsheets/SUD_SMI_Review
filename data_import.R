@@ -4,77 +4,105 @@
 library(readxl) # read_excel
 library(stringr) # string_match,
 
-
-#### Proto-function notes
-
-# can make lists of the preprocessing parameters
-
-# https://chryswoods.com/beginning_r/dictionaries.html
-pp_dict = c('file_name' = 'dc-behavioral-health-transformation-qrtly-rpt-sud-jul-sep-2022.xlsx',
-            'state_name' = 'DC', 
-            'rm_rows' = c(1:9, 11:13, 88:123),
-            'rm_cols' = c(3:11)
-            )
-print(as.character(pp_dict['file_name']))
-
-# The above dictionary could be stored into some sort of 
-
-
-####
+# fillTheBlanks function
+fillTheBlanks <- function(x, missing=""){
+  #' Fill in Blank values in a vector
+  #'
+  #' Detect the presence of missing column headers and fill them in
+  #' @param x An object of class "?". Description of parameter
+  #' @param missing An object of class "?". Description of parameter
+  #' @return Returns an object of class "?". Description of what the function returns
+  rle <- rle(as.character(x))
+  empty <- which(rle$value==missing)
+  rle$values[empty] <- rle$value[empty-1] 
+  inverse.rle(rle)
+}
 
 
-
-
-
-
-# Set the file location relative to this script
-data_dir <- './data'
-
-
-# Get a list of all files which match the pattern in the data_dir location
-sheetlist <- dir(data_dir, recursive=TRUE, full.names=TRUE, pattern='\\.xlsx$')
-
-# Iterate through all of the files and load relevant data
-for (i in 1:length(sheetlist)) {
-  print(i)
+data_preprocess <- function(data_dir) {
   
-  # TODO: Look at 'skip' and 'col_types'arguments for read_excel
-  #
-  # Also look here:https://stackoverflow.com/questions/51886004/keeping-specific-columns-in-read-excel
-  #qq <- read_excel(sheetlist[i], sheet = 'SUD metrics', range = cell_cols(c(1,9,NA, 10,12)))
-  data <- read_excel(sheetlist[i], sheet = 'SUD metrics')
+  # Set the file location relative to this script
+  #data_dir <- './data'
   
-  # TODO: I get what this is trying to do, but there has to be a better way to get the state name from the file name
-  data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2] #Find the name of the state matching this?
-  # Would be significantly easier to just have the user input the state name
   
-  print(i)
+  # Get a list of all files which match the pattern in the data_dir location
+  sheetlist <- dir(data_dir, recursive=TRUE, full.names=TRUE, pattern='\\.xlsx$')
   
-  ### DC
-  # Remove rows
-  data <- data[-(c(1:9, 11:13, 88:123)),]
-  
-  # Remove columns
-  data <- data[, -c(3:11)]
-  
-  # NH, KS delete unneeded rows and columns
-  #data <- data[-(c(1:9, 11:13, 91:111)),]
-  #data <- data[,-c(3:11)]
-  
-  # same for all states - rest of the data preprocessing
-  
-  colnames(data) <- (data[1,])
-  data <- data[-1,]
-  colnames(data)[1] <- "metric_number"
-  colnames(data)[2] <- "metric_name"
-  colnames(data)[6] <- "numerator_count"
-  colnames(data)[5] <- "denominator"
-  colnames(data)[7] <- "rate_percent"
-  colnames(data)[3] <- "measurement_period"
-  colnames(data)[4] <- "date"
-  data <- data[,-(ncol(data))] #removing since column names have changed
-  data$state <- str_match(sheetlist[1], pattern = "//\\s*(.*?)\\s*/")[,2] #fixing above
+  paramlist <- gsub('.xlsx', '.txt', sheetlist)
+
+  # Iterate through all of the files and load relevant xlsx files, along with matching txt rubrics
+  for (i in 1:length(sheetlist)) {
+    
+    # Get parameters for the xlsx file you are loading
+    params <- read.table(paramlist[i], sep=',', header = TRUE, strip.white = TRUE)
+    
+    # Determine which columns to load and their names
+    data <- read_excel(sheetlist[i], sheet = params[params$Variable == "sheet_name", 2])
+    
+    # Combine all row_rm into one list to use
+    z <- sapply(
+      str_extract_all(
+        params[params$Variable == 'row_rm',2], '[0-9.]+'), 
+        function(x) as.numeric(x)
+    )
+    
+    q <- c()
+    for (j in 1:dim(z)[2]){
+      q <- union(q, c(z[1,j]:z[2,j]))
+    }
+    
+    # remove said rows
+    data <- data[-q,]
+    
+    
+    # load in the specified columns and rename them as requested
+    rel_cols <- params[!(params$Variable %in% c('row_rm', 'state', 'sheet_name')),]
+    data <- data[,as.numeric(rel_cols[,2])]
+    # rename the columns of data to match those from the text file
+    colnames(data) <- rel_cols[,1]
+    
+    # fill any blank value in the columns
+    data$metric_name <- ifelse(is.na(data$metric_name) == TRUE, "blank", 
+                               ifelse(data$metric_name == "blank", "",
+                                      data$metric_name))
+    data$metric_name <- fillTheBlanks(data$metric_name)
+    
+    #n.a. text in reports
+    data <- data.frame(lapply(data, function(x) {
+      gsub("n.a.", "", x)
+    }))
+    
+    
+    #for (j in unique(data$date)){
+    #  
+    #}
+    data$date <- str_replace(data$date, "/21$", "/2021")
+    data$date <- str_replace(data$date, "/21-", "/2021-")
+    data$date <- str_replace(data$date, "/20$", "/2020")
+    data$date <- str_replace(data$date, "/20-", "/2020-")
+    data$date <- substr(data$date, 1, 10) 
+    data$date <- as.Date(data$date, format = "%m/%d/%Y")
+    
+    # change the data typing of the columns if necessary
+    for (j in as.integer(rel_cols[,2])){
+      if (rel_cols[j,3] == 'c'){
+        data[,j] <- sapply(data[,j], as.character)
+      }
+      
+      if (rel_cols[j,3] == 'f'){
+        data[,j] <- sapply(data[,j], as.factor)
+      }
+      
+      if (rel_cols[j,3] == 'n'){
+        data[,j] <- sapply(data[,j], as.numeric)
+      }
+    }
   
   }
+  
+  return(data)
+}
+
+qq <- data_preprocess('./data')
 
 print('done')
