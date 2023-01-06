@@ -10,14 +10,6 @@ output: html_document
 knitr::opts_knit$set(root.dir = '~/Documents/CODE/SUD_SMI_Review')
 ```
 
-# Define file locations and column names
-```{r}
-
-# Directory containing the data
-data_dir = './data/'
-
-```
-
 #load libraries and set up functions
 ```{r}
 
@@ -53,14 +45,6 @@ NotFancy <- function(l) {
 }
 
 datalist <- c()
-```
-
-# Playing around with alternatives for the weird loading in practices
-```{r}
-samp_report <- read_excel(paste(data_dir, sheetlist[1], sep=''), sheet = 'SUD metrics', skip = 9)
-
-comp_samp_report <- read_excel(paste(data_dir, sheetlist[1], sep=''), sheet = 'SUD metrics')
-comp_dat <- comp_samp_report[-(c(1:9, 11:13, 88:123)),]
 ```
 
 # for loop: for each spreadsheet in the sheetlist, run the following code, and then save the data in the 'combo' data frame
