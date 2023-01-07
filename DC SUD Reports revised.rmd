@@ -7,7 +7,7 @@ output: html_document
 
 #set working directory for all following blocks
 ```{r, setup, include=FALSE}
-knitr::opts_knit$set(root.dir = '/Users/paulsheets/Desktop/CMS Data')
+knitr::opts_knit$set(root.dir = '~/Documents/CODE/SUD_SMI_Review')
 ```
 
 #load libraries and set up functions
@@ -19,13 +19,20 @@ library(stringr)
 library(ggplot2)
 
 #load data by loading all excel files in folder to list
-setwd(dir = "/Users/paulsheets/Desktop/CMS Data")
+setwd(dir = '~/Documents/CODE/SUD_SMI_Review/data')
 
 #testing data from multiple states
 sheetlist <- dir("/Users/paulsheets/Desktop/CMS Data/", recursive=TRUE, full.names=TRUE, pattern="\\.xlsx$")
 
 #set up functions and objects
+
 fillTheBlanks <- function(x, missing=""){
+  #' Fill in Blank values in a vector
+  #'
+  #' Detect the presence of missing column headers and fill them in
+  #' @param x An object of class "?". Description of parameter
+  #' @param missing An object of class "?". Description of parameter
+  #' @return Returns an object of class "?". Description of what the function returns
   rle <- rle(as.character(x))
   empty <- which(rle$value==missing)
   rle$values[empty] <- rle$value[empty-1] 
@@ -142,6 +149,7 @@ data_preprocess <- function(xl_file, txt_file) {
 datalist <- c()
 ```
 
+<<<<<<< HEAD
 #New stuff pasted from the Ross tutorial
 
 ```{r}
@@ -178,14 +186,16 @@ head(datalist[[1]])
 
 
 
+=======
+>>>>>>> b7da97214a1710406831b65ea121650c23df1b23
 # for loop: for each spreadsheet in the sheetlist, run the following code, and then save the data in the 'combo' data frame
-
 
 ```{r}
 
+# Iterate through all of the files and load relevant data
 for (i in 1:length(sheetlist)) {
   print(i)
-  x <- sheetlist[i] 
+  x <- paste(data_dir, sheetlist[i], sep='')
   mon_report <- read_excel(x, sheet = "SUD metrics")
   data <- mon_report
   data$state <- str_match(sheetlist[i], pattern = "//\\s*(.*?)\\s*/")[,2] #need here for below subset
@@ -196,16 +206,16 @@ for (i in 1:length(sheetlist)) {
   
   #DC delete unneeded rows and columns
   data <- data[-(c(1:9, 11:13, 88:123)),]
+
   data <- data[,-c(3:11)]
   
   # NH, KS delete unneeded rows and columns
   #data <- data[-(c(1:9, 11:13, 91:111)),]
   #data <- data[,-c(3:11)]
 
-  
-  
+
   # same for all states - rest of the data processing 
-#make column names
+  # make column names
   colnames(data) <- (data[1,])
   data <- data[-1,]
   colnames(data)[1] <- "metric_number"

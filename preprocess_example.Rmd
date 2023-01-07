@@ -1,0 +1,41 @@
+---
+title: "Preprocessing Example"
+author: "Ross L."
+date: "2023-01-06"
+output: html_document
+---
+
+# Reference the `data_preprocess` function from data_import.R so you can use it. This also will contain the fillTheBlanks function
+```{r}
+source('./data_import.R')
+```
+
+
+# Define the directory containing the excel and text files to be used in this analysis and get a list of the filenames
+```{r}
+data_dir <- './data'
+
+# Get excel files from data_dir
+sheetlist <- dir(data_dir, recursive=TRUE, full.names=TRUE, pattern='\\.xlsx$')
+# Make txt file names by substituting .xlsx for .txt
+txtlist <- gsub('.xlsx', '.txt', sheetlist)
+
+```
+
+# Iterate through all of the xlxs/txt pairs, calling the `data_preprocess` function on each one
+```{r}
+datalist <- c()
+
+for(i in 1:length(sheetlist)){
+  data <- data_preprocess(sheetlist[i], txtlist[i])
+  
+  # name preprocessed dataset and add to datalist
+  z <- str_sub(sheetlist[i], start= -17)
+  #assign(paste(z), data)
+  datalist[[i]] = assign(paste(z), data)
+}
+
+# Check that it loaded properly
+head(datalist[[1]])
+
+```
